@@ -145,7 +145,7 @@ def home(request):
         week_values.append(
             Task.objects.filter(
                 user=request.user,
-                date=d
+                date=d,
                 is_completed=True
             ).count()
         )
