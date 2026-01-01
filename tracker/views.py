@@ -146,6 +146,7 @@ def home(request):
             Task.objects.filter(
                 user=request.user,
                 date=d
+                is_completed=True
             ).count()
         )
 
