@@ -7,7 +7,6 @@ from datetime import date, datetime, timedelta
 import calendar
 
 
-
 def get_week_data(user, week_start):
     days = []
     values = []
@@ -85,10 +84,10 @@ def calculate_streak(user):
 def home(request):
     # selected date (ONE source of truth)
     selected_date_str = request.GET.get("date")
-    week_str = request.GET.get("week")
+    week_param = request.GET.get("week")
 
-    if week_str:
-        week_start = date.fromisoformat(week_str)
+    if week_param:
+        week_start = datetime.strptime(week_param, "%Y-%m-%d").date()
     else:
         today = date.today()
         week_start = today - timedelta(days=today.weekday())
@@ -140,16 +139,16 @@ def home(request):
     week_labels = []
     week_values = []
 
-    for i in range(6, -1, -1):
-        d = date.today() - timedelta(days=i)
+    for i in range(7):
+        d = week_start + timedelta(days=i)
         week_labels.append(d.strftime("%a"))
         week_values.append(
             Task.objects.filter(
                 user=request.user,
-                date=d,
-                is_completed=True
+                date=d
             ).count()
         )
+
 
     context = {
         # left side
