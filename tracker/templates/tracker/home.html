@@ -1,0 +1,335 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Daily Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <meta name="theme-color" content="#4caf50">
+
+    <style>
+        body {
+            font-family: "Segoe UI", sans-serif;
+            background: linear-gradient(135deg, #e0f7fa, #fce4ec);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .logout-btn {
+            position: fixed;
+            top: 15px;
+            right: 20px;
+        }
+
+        .logout-btn button {
+            background: #ff5252;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 14px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+
+        .add-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .add-form input, .add-form button {
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+
+        .add-form button {
+            background: #4caf50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        li {
+            background: #f5f5f5;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .done {
+            text-decoration: line-through;
+            color: gray;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .task-actions button {
+            border: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .toggle-btn { background: #2196f3; color: white; }
+        .delete-btn { background: #e53935; color: white; }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .calendar-header a {
+            text-decoration: none;
+            background: #673ab7;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 7px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        td a {
+            text-decoration: none;
+            color: black;
+            display: block;
+        }
+
+        .complete { background: #81c784; }
+        .partial { background: #fff176; }
+        .none { background: #eeeeee; }
+
+
+        /* 📱 Mobile Responsive Fix */
+        @media (max-width: 768px) {
+
+        .layout {
+            grid-template-columns: 1fr;
+        }
+
+        .calendar {
+            margin-top: 20px;
+        }
+
+        .add-form {
+            flex-direction: column;
+        }
+
+        .add-form input,
+        .add-form button {
+            width: 100%;
+        }
+
+        .task-actions {
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .logout-btn {
+            position: static;
+            text-align: right;
+            margin-bottom: 10px;
+        }
+    }
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<body>
+
+<!-- LOGOUT -->
+<div class="logout-btn">
+    <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button>Logout</button>
+    </form>
+</div>
+
+<div class="container">
+
+<h1>Daily Tracker</h1>
+
+<div class="layout">
+
+<!-- LEFT -->
+<div>
+    <p><strong>Date:</strong> {{ selected_date }}</p>
+    <p><strong>Progress:</strong> {{ completed }} / {{ total }}</p>
+
+    <h4 style="margin-top:15px; text-align:center;">
+    <a href="/?week={{ prev_week }}">⏮️</a>
+    Weekly Progress
+    <a href="/?week={{ next_week }}">⏭️</a>
+</h4>
+
+
+<div style="height:180px;">
+    <canvas id="weeklyChart"></canvas>
+</div>
+
+    <!-- ADD TASK (FIXED) -->
+    <form method="post" class="add-form">
+        {% csrf_token %}
+
+        <input
+            type="text"
+            name="title"
+            placeholder="New task"
+            required
+        >
+
+        <!-- 🔥 FIX: auto-filled, NOT required -->
+        <input
+            type="date"
+            name="task_date"
+            value="{{ selected_date|date:'Y-m-d' }}"
+        >
+
+        <button type="submit">Add</button>
+    </form>
+
+    <ul>
+        {% for task in tasks %}
+        <li>
+            <span class="{% if task.is_completed %}done{% endif %}">
+                {{ task.title }}
+            </span>
+
+            <div class="task-actions">
+                <form method="post" action="{% url 'toggle_task' task.id %}">
+                    {% csrf_token %}
+                    <button class="toggle-btn">
+                        {% if task.is_completed %}Undo{% else %}Done{% endif %}
+                    </button>
+                </form>
+
+                <form method="post" action="{% url 'delete_task' task.id %}">
+                    {% csrf_token %}
+                    <button class="delete-btn">Delete</button>
+                </form>
+            </div>
+        </li>
+        {% empty %}
+        <li>No tasks for this day.</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<!-- RIGHT -->
+<div>
+    <div class="calendar-header">
+        <a href="/?date={{ prev_month }}">⬅ Prev</a>
+        <strong>{{ month_name }} {{ year }}</strong>
+        <a href="/?date={{ next_month }}">Next ➡</a>
+    </div>
+
+    <table>
+        <tr>
+            <th>Mon</th><th>Tue</th><th>Wed</th>
+            <th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+        </tr>
+
+        {% for week in calendar %}
+        <tr>
+            {% for day in week %}
+                {% if day.day %}
+                <td class="{{ day.status }}">
+                    <a href="/?date={{ day.date }}">{{ day.day }}</a>
+                </td>
+                {% else %}
+                <td></td>
+                {% endif %}
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+</div>
+</div>
+
+<script>
+const ctx = document.getElementById('weeklyChart');
+
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: {{ week_labels|safe }},
+        datasets: [{
+            label: 'Completed Tasks',
+            data: {{ week_values|safe }},
+            backgroundColor: '#4caf50',
+            borderRadius: 6
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: { stepSize: 1 }
+            }
+        }
+    }
+});
+</script>
+
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register("{% static 'service-worker.js' %}")
+    .then(() => console.log("Service Worker Registered"));
+}
+</script>
+
+</body>
+</html>
